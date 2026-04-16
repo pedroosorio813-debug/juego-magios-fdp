@@ -32,7 +32,7 @@ const char USAR_ANTORCHA = 'L';
 const int VIDAS_INICIALES = 5;
 const int HECHIZOS_INICIALES = 5;
 const int ANTORCHAS_POR_NIVEL = 5;
-const int DISTANCIA_ANTORCHA = 3;
+const int DISTANCIA_MAN = 3;
 const int CANTIDAD_TOTEMS = 5;
 const int CANTIDAD_PIEDRAS = 10;
 
@@ -224,43 +224,57 @@ void mostrar_juego(juego_t juego){
  * debe ser válida.
  * Post condiciones: Realizará la acción recibida por parámetro actualizando el juego.
  */
-void realizar_jugada(juego_t *juego, char movimiento){ 
-    coordenada_t pos = (*juego).homero.posicion ;
-    int derecha = pos.col++;
-    int izquierda = pos.col--;
-    int arriba = pos.fil--;
-    int abajo = pos.fil++;
 
-    for(int fil = 0; fil < MAX_FILAS; fil++){
-        for(int col = 0; col < MAX_COLUMNAS; col++){
-            if(arriba != fil && arriba != col){
-                (*juego).homero.posicion.fil = pos.fil;
-            }
-             if(abajo != fil && abajo != col){
-                (*juego).homero.posicion.fil = pos.fil;
-            } 
-             if(derecha != fil && derecha != col){
-                (*juego).homero.posicion.col = pos.col;
-             }
-             if(izquierda != fil && izquierda != col){
-                (*juego).homero.posicion.col = pos.col;
-             }
-        }
+void realizar_jugada(juego_t *juego, char movimiento) {
+    coordenada_t nueva_pos = (*juego).homero.posicion;
+
+    if (movimiento == ARRIBA){
+        nueva_pos.fil--;
+    }
+    else if (movimiento == ABAJO){
+         nueva_pos.fil++;
+    }
+    else if (movimiento == DERECHA){
+         nueva_pos.col++;
+    }   
+    else if (movimiento == IZQUIERDA){
+         nueva_pos.col--;
+    }else if (movimiento == USAR_HECHIZO && (*juego).homero.hechizos_reveladores > 0){
+         if ((*juego).homero.posicion.fil == nueva_pos.fil && (*juego).homero.posicion.col == nueva_pos.col) {
+                 (*juego).camino_visible = true;
+                 (*juego).homero.hechizos_reveladores--;
+         }        
+    }else if(movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
+         if ((*juego).homero.posicion.fil == nueva_pos.fil && (*juego).homero.posicion.col == nueva_pos.col) {
+                 (*juego).homero.antorcha_encendida = true;
+                 (*juego).niveles[(*juego).nivel_actual].camino[DISTANCIA_MAN];
+                 (*juego).camino_visible = true;
+                 (*juego).homero.antorchas--;
+         }   
+    }
+
+    if (nueva_pos.fil < 0 || nueva_pos.fil >= MAX_FILAS ||
+        nueva_pos.col < 0 || nueva_pos.col >= MAX_COLUMNAS)
+        return;  
+
+    nivel_t nivel = (*juego).niveles[(*juego).nivel_actual];
+    for (int i = 0; i < nivel.tope_paredes; i++) {
+        if (nivel.paredes[i].fil == nueva_pos.fil &&
+            nivel.paredes[i].col == nueva_pos.col)
+            return;  
     }
 
 
-    if(movimiento == DERECHA){
-        (*juego).homero.posicion.col++;
-    }else if(movimiento == IZQUIERDA){
-        (*juego).homero.posicion.col--;
-    }else if(movimiento == ARRIBA){
-        (*juego).homero.posicion.fil--;
-    }else {
-        (*juego).homero.posicion.fil++;
-    }
-     
+    /*
+        3.7.1 Hechizo revelador
+Homero tendrá 5 oportunidades durante todo el juego para ver el camino en caso de no recordarlo. 
+Se activará por teclado con la letra H.
+    */
+
+    
+
+    (*juego).homero.posicion = nueva_pos;
 }
-
 
 
 

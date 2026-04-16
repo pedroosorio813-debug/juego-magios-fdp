@@ -7,12 +7,16 @@ int main() {
     juego_t juego;
     inicializar_juego(&juego);   
     mostrar_juego(juego);    
-    
+    char fuera = 'X';
     char tecla;
     printf("Ingrese un movimiento: ");
     scanf(" %c", &tecla);
-    realizar_jugada(&juego, tecla);
-    mostrar_juego(juego);
+    while(tecla != fuera){
+       realizar_jugada(&juego, tecla);
+       mostrar_juego(juego);
+       printf("Ingrese un movimiento: ");
+       scanf(" %c", &tecla);
+    }
 
     return 0;
 }
