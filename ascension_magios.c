@@ -32,7 +32,7 @@ const char USAR_ANTORCHA = 'L';
 const int VIDAS_INICIALES = 5;
 const int HECHIZOS_INICIALES = 5;
 const int ANTORCHAS_POR_NIVEL = 5;
-const int DISTANCIA_MAN = 3;
+const int DISTANCIA_ANTORCHA = 3;
 const int CANTIDAD_TOTEMS = 5;
 const int CANTIDAD_PIEDRAS = 10;
 
@@ -70,6 +70,32 @@ bool esta_ocupada(nivel_t nivel, coordenada_t pos) {
 
     return false; 
 }
+
+int distancia_manhattan(coordenada_t pos_1, coordenada_t pos_2) {
+    return abs(pos_1.fil - pos_2.fil) + abs(pos_1.col - pos_2.col);
+}
+
+void eliminar_elemento_herramientas(juego_t* juego, int indice) {
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+    for(int i = indice; i < (*nivel).tope_herramientas - 1; i++){
+        (*nivel).herramientas[i] = (*nivel).herramientas[i + 1];
+    }
+    (*nivel).tope_herramientas--;
+}
+
+bool esta_homero_totem(juego_t* juego, personaje_t homero){
+    coordenada_t posicion_homero = homero.posicion;
+    for(int i = 0; i < (*juego).niveles[(*juego).nivel_actual].tope_herramientas; i++){
+        if(posicion_homero.fil == (*juego).niveles[(*juego).nivel_actual].herramientas[i].posicion.fil 
+        && posicion_homero.col == (*juego).niveles[(*juego).nivel_actual].herramientas[i].posicion.col && 
+        (*juego).niveles[(*juego).nivel_actual].herramientas[i].tipo == TOTEM){
+            eliminar_elemento_herramientas(&((*juego)),i);
+            return true;
+        }
+    }
+    return false;
+}
+
 
 
 coordenada_t obtener_posicion_vacia(nivel_t nivel, personaje_t homero) {
@@ -141,21 +167,23 @@ char mostrar_celda(juego_t juego, int fil, int col) {
         }
     }
 
-
-    if (juego.camino_visible) {
+    if (juego.camino_visible || juego.homero.antorcha_encendida) {
     
-         if (nivel_actual.camino[0].fil == fil && nivel_actual.camino[0].col == col) {
-             return RUNA;
-         }
-    
-         if (nivel_actual.camino[ultima_posicion - 1].fil == fil && nivel_actual.camino[ultima_posicion - 1].col == col) {
-            return ALTAR;
-         }
+         for(int i = 0; i < ultima_posicion; i++){
+            if (nivel_actual.camino[i].fil == fil && nivel_actual.camino[i].col == col){
+                int distancia = distancia_manhattan(juego.homero.posicion, nivel_actual.camino[i]);
+                if(juego.camino_visible || distancia <= DISTANCIA_ANTORCHA){
+                    if (i == 0) {
+                        return RUNA;
+                    }
+                    if(i == ultima_posicion - 1){
+                        return ALTAR;
+                    }
+                    return CAMINO;
+                }
 
-        for (int i = 1; i < ultima_posicion - 1; i++) { 
-            if (nivel_actual.camino[i].fil == fil && nivel_actual.camino[i].col == col) {
-                return CAMINO;
-            }    
+            }
+              
         }
     }
 
@@ -216,7 +244,9 @@ void mostrar_juego(juego_t juego){
         }
         printf("\n");
     }
-  
+    printf("\n");
+    printf("%d ", juego.niveles[juego.nivel_actual].tope_herramientas);
+    printf("\n");
 }
 
 /*
@@ -227,7 +257,10 @@ void mostrar_juego(juego_t juego){
 
 void realizar_jugada(juego_t *juego, char movimiento) {
     coordenada_t nueva_pos = (*juego).homero.posicion;
-
+    nivel_t nivel = (*juego).niveles[(*juego).nivel_actual];
+    personaje_t homero = (*juego).homero;
+    (*juego).camino_visible = false;
+    (*juego).homero.antorcha_encendida = false;
     if (movimiento == ARRIBA){
         nueva_pos.fil--;
     }
@@ -240,44 +273,39 @@ void realizar_jugada(juego_t *juego, char movimiento) {
     else if (movimiento == IZQUIERDA){
          nueva_pos.col--;
     }else if (movimiento == USAR_HECHIZO && (*juego).homero.hechizos_reveladores > 0){
-         if ((*juego).homero.posicion.fil == nueva_pos.fil && (*juego).homero.posicion.col == nueva_pos.col) {
-                 (*juego).camino_visible = true;
-                 (*juego).homero.hechizos_reveladores--;
-         }        
-    }else if(movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
-         if ((*juego).homero.posicion.fil == nueva_pos.fil && (*juego).homero.posicion.col == nueva_pos.col) {
-                 (*juego).homero.antorcha_encendida = true;
-                 (*juego).niveles[(*juego).nivel_actual].camino[DISTANCIA_MAN];
-                 (*juego).camino_visible = true;
-                 (*juego).homero.antorchas--;
-         }   
+        (*juego).camino_visible = true;
+        (*juego).homero.hechizos_reveladores--;
+        (*juego).niveles[(*juego).nivel_actual].tope_herramientas--;
+    }else if (movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
+        (*juego).homero.antorcha_encendida = true;
+        (*juego).homero.antorchas--;   
+        (*juego).niveles[(*juego).nivel_actual].tope_herramientas--;
     }
 
     if (nueva_pos.fil < 0 || nueva_pos.fil >= MAX_FILAS ||
         nueva_pos.col < 0 || nueva_pos.col >= MAX_COLUMNAS)
         return;  
 
-    nivel_t nivel = (*juego).niveles[(*juego).nivel_actual];
+   
     for (int i = 0; i < nivel.tope_paredes; i++) {
         if (nivel.paredes[i].fil == nueva_pos.fil &&
             nivel.paredes[i].col == nueva_pos.col)
             return;  
     }
 
-
-    /*
-        3.7.1 Hechizo revelador
-Homero tendrá 5 oportunidades durante todo el juego para ver el camino en caso de no recordarlo. 
-Se activará por teclado con la letra H.
-    */
-
-    
-
     (*juego).homero.posicion = nueva_pos;
+    if(esta_homero_totem(&(*juego),homero)){
+        (*juego).homero.vidas_restantes++;
+    }
 }
 
 
-
+/*
+    3.7.3 Tótem
+Habra 5 tótems inicializados de forma aleatoria en todo el terreno en cada nivel. Si Homero se posiciona sobre uno, 
+este le otorgará una vida extra. 
+Una vez que Homero se haya posicionado sobre un tótem, este se eliminará del vector de herramientas.
+*/
 
 
 
