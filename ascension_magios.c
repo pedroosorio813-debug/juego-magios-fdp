@@ -73,19 +73,34 @@ bool esta_ocupada(nivel_t nivel, coordenada_t pos) {
     return es_ocupada;
 }
 
+
 int distancia_manhattan(coordenada_t pos_1, coordenada_t pos_2) {
     return abs(pos_1.fil - pos_2.fil) + abs(pos_1.col - pos_2.col);
 }
 
-bool esta_totem(juego_t juego ,coordenada_t pos_homero){
+bool esta_totem(juego_t *juego ,coordenada_t pos_homero){
     bool aux = false;
-    nivel_t nivel = juego.niveles[juego.nivel_actual];
-    for(int i = 0; i < nivel.tope_herramientas; i++){
-        if(nivel.herramientas[i].posicion.fil == pos_homero.fil && nivel.herramientas[i].posicion.col == pos_homero.col
-           && nivel.herramientas[i].tipo == TOTEM){
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+    for(int i = 0; i < (*nivel).tope_herramientas; i++){
+        if((*nivel).herramientas[i].posicion.fil == pos_homero.fil && (*nivel).herramientas[i].posicion.col == pos_homero.col
+           && (*nivel).herramientas[i].tipo == TOTEM){
             aux = true;
         }
     }
+    return aux;
+}
+
+bool es_pared(nivel_t *nivel, coordenada_t posicion) {
+    bool aux = false;
+    int i = 0;
+
+    while (i < (*nivel).tope_paredes && !aux) {
+        if ((*nivel).paredes[i].fil == posicion.fil && (*nivel).paredes[i].col == posicion.col) {
+            aux = true;
+        }
+        i++;
+    }
+
     return aux;
 }
 
@@ -104,6 +119,20 @@ void eliminar_elemento_herramientas(juego_t* juego, coordenada_t pos_homero) {
     (*nivel).tope_herramientas--;
 }
 
+void eliminar_elemento_obtaculos(juego_t* juego, coordenada_t pos_homero){
+    int indice = 0;
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+    for(int i = 0; i < (*nivel).tope_obstaculos;i++){
+        if(pos_homero.fil == (*nivel).obstaculos[i].posicion.fil && pos_homero.col == (*nivel).obstaculos[i].posicion.col){
+            indice = i;
+        }
+    }
+
+    for(int i = indice; i < (*nivel).tope_obstaculos - 1; i++){
+        (*nivel).obstaculos[i] = (*nivel).obstaculos[i + 1];
+    }
+    (*nivel).tope_obstaculos--;
+}
 
 coordenada_t obtener_posicion_vacia(nivel_t nivel, personaje_t homero) {
     coordenada_t posicion;
@@ -116,6 +145,62 @@ coordenada_t obtener_posicion_vacia(nivel_t nivel, personaje_t homero) {
 
     return posicion;
 
+}
+
+coordenada_t obtener_posicion_catapulta(juego_t* juego) {
+    nivel_t nivel = (*juego).niveles[(*juego).nivel_actual];
+    coordenada_t pos;
+    bool posicion_invalida = true;
+    int ultima_posicion_altar =  nivel.tope_camino - 1;
+    while (posicion_invalida) {
+        pos.fil = rand() % MAX_FILAS;
+        pos.col = rand() % MAX_COLUMNAS;
+
+        bool es_homero = (pos.fil == (*juego).homero.posicion.fil && 
+                          pos.col == (*juego).homero.posicion.col);
+
+        bool es_pared_pos = es_pared(&nivel, pos);
+
+        bool es_runa = (pos.fil == nivel.camino[0].fil && 
+                        pos.col == nivel.camino[0].col);
+        bool es_altar = (pos.fil == nivel.camino[ultima_posicion_altar].fil && 
+                         pos.col == nivel.camino[ultima_posicion_altar].col);
+
+        if (!es_homero && !es_pared_pos && !es_runa && !es_altar) {
+            posicion_invalida = false;
+        }
+    }
+
+    return pos;
+}
+
+void aplicar_bola_de_fuego(juego_t* juego, coordenada_t pos_bola) {
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+
+    printf("Bola cayo en: (%d, %d)\n", pos_bola.fil, pos_bola.col);
+    printf("Tope camino antes: %d\n", (*nivel).tope_camino);
+
+    int indice = -1;
+    int i = 0;
+    bool encontrado = false;
+
+    while(i < (*nivel).tope_camino && !encontrado){
+         if ((*nivel).camino[i].fil == pos_bola.fil && 
+            (*nivel).camino[i].col == pos_bola.col) {
+            indice = i;
+            encontrado = true;
+        }
+        i++;
+    }
+       
+
+    if(encontrado){
+        for (int i = indice; i < (*nivel).tope_camino - 1; i++) {
+           (*nivel).camino[i] = (*nivel).camino[i + 1];
+        }
+        (*nivel).tope_camino--;
+        printf("Eliminando indice %d del camino. Nuevo tope: %d\n", indice, (*nivel).tope_camino);
+    }
 }
 
 void inicializar_objetos_dinamicos(nivel_t* nivel, personaje_t homero) {
@@ -205,32 +290,43 @@ char mostrar_celda(juego_t juego, int fil, int col) {
     return celda;
 }
 
-bool es_pared(nivel_t nivel, coordenada_t posicion) {
-    bool aux = false;
-    int i = 0;
 
-    while (i < nivel.tope_paredes && !aux) {
-        if (nivel.paredes[i].fil == posicion.fil && nivel.paredes[i].col == posicion.col) {
-            aux = true;
-        }
-        i++;
-    }
-
-    return aux;
-}
-
-bool esta_fuera_mapa(coordenada_t posicion){
-    if(posicion.fil < 0 || posicion.fil >= MAX_FILAS || posicion.col < 0 || posicion.col >= MAX_COLUMNAS){
+bool esta_fuera_mapa(coordenada_t *posicion){
+    if((*posicion).fil < 0 || (*posicion).fil >= MAX_FILAS || (*posicion).col < 0 || (*posicion).col >= MAX_COLUMNAS){
         return true;
     }else{
         return false;
     }
 }
 
+bool esta_en_camino(juego_t *juego, coordenada_t pos_homero){
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+    bool aux = false;
+    for(int i = 0; i < (*nivel).tope_camino; i++){
+        if(pos_homero.fil == (*nivel).camino[i].fil && pos_homero.col == (*nivel).camino[i].col){
+            aux = true;
+        }
+    }
+    return aux;
+}
+
+bool esta_en_piedra(juego_t *juego, coordenada_t pos_homero){
+     nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+     bool aux = false;
+     for(int i = 0; i < (*nivel).tope_obstaculos; i++){
+        if(pos_homero.fil == (*nivel).obstaculos[i].posicion.fil && pos_homero.col == (*nivel).obstaculos[i].posicion.col 
+        && (*nivel).obstaculos[i].tipo == PIEDRA){
+            aux = true;
+        }
+     }
+     return aux;
+}
+    
+
 
 
 //_______________________________________________________________________________________
-
+//FUNCIONES QUE PUEDE USAR EL CLIENTE
 
 void inicializar_juego(juego_t *juego) {
     (*juego).tope_niveles = MAX_NIVELES;
@@ -250,7 +346,7 @@ void inicializar_juego(juego_t *juego) {
     (*juego).homero.antorchas = ANTORCHAS_POR_NIVEL;
     (*juego).homero.antorcha_encendida = false;
     (*juego).homero.recolecto_pergamino = false;
-    (*juego).camino_visible = false;
+    (*juego).camino_visible = true;
 
     for (int i = 0; i < MAX_NIVELES; i++) {
         int pergamino_aleatorio = num_aleatorio_pergamino((*juego).niveles[i].tope_camino);
@@ -276,20 +372,17 @@ void mostrar_juego(juego_t juego){
         }
         printf("\n");
     }
-    printf("\n");
-    printf("%d ", juego.niveles[juego.nivel_actual].tope_herramientas);
-    printf("\n");
+    printf("Nivel actual: %d | Tope camino: %d\n", juego.nivel_actual, juego.niveles[juego.nivel_actual].tope_camino);
 }
 
-/*
- * Pre condiciones: El juego debe estar inicializado previamente con `inicializar_juego` y la acción
- * debe ser válida.
- * Post condiciones: Realizará la acción recibida por parámetro actualizando el juego.
- */
 
 void realizar_jugada(juego_t *juego, char movimiento) {
+     nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+     coordenada_t pos_anterior = (*juego).homero.posicion;
      coordenada_t nueva_pos = (*juego).homero.posicion;
-     nivel_t nivel = (*juego).niveles[(*juego).nivel_actual];
+     
+     (*juego).homero.antorcha_encendida = false;
+     (*juego).camino_visible = false;
 
      if(movimiento == DERECHA){
         nueva_pos.col++;
@@ -302,26 +395,46 @@ void realizar_jugada(juego_t *juego, char movimiento) {
      }
      else if(movimiento == ABAJO){
         nueva_pos.fil++;
+     }else if(movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
+        (*juego).homero.antorcha_encendida = true;
+        (*juego).homero.antorchas--;
+     }else if(movimiento == USAR_HECHIZO && (*juego).homero.hechizos_reveladores > 0){
+        (*juego).camino_visible = true;
+        (*juego).homero.hechizos_reveladores--;
+        coordenada_t pos_hechizo = obtener_posicion_catapulta(juego);
+        aplicar_bola_de_fuego(juego, pos_hechizo);
      }
 
 
-     if(!es_pared(nivel,nueva_pos) && !esta_fuera_mapa(nueva_pos)){
+     if(!es_pared(nivel,nueva_pos) && !esta_fuera_mapa(&nueva_pos)){
         (*juego).homero.posicion = nueva_pos;
      }
 
-     if(esta_totem((*juego),nueva_pos)){
+     bool llego_a_runa = (nueva_pos.fil == (*nivel).camino[0].fil &&  nueva_pos.col == (*nivel).camino[0].col);
+     bool venia_de_otro_lado = (pos_anterior.fil != (*nivel).camino[0].fil || pos_anterior.col != (*nivel).camino[0].col);
+
+
+    if (llego_a_runa && venia_de_otro_lado) {
+        coordenada_t pos_bola = obtener_posicion_catapulta(juego);
+        aplicar_bola_de_fuego(juego, pos_bola);
+     }
+
+     if(esta_totem(juego,nueva_pos)){
         (*juego).homero.vidas_restantes++;
         eliminar_elemento_herramientas(juego,nueva_pos);
      }
 
-    
-    /*
-        recibe las teclas que presiona el usuario que pueden ser D A L S W H luego de ser presionanda 
-        homero debe moverse de su posicion actual pero no debe pasar los limites del mapa 
-        ni tampoco pisar ni traspasar las paredes
-    */
-  
+     if(!esta_en_camino(juego,nueva_pos) && !esta_fuera_mapa(&nueva_pos)){
+        (*juego).homero.vidas_restantes--;
+     }
+
+     if(esta_en_piedra(juego,nueva_pos)){
+        eliminar_elemento_obtaculos(juego,nueva_pos);
+        int num_pergamino_ale = num_aleatorio_pergamino((*nivel).tope_camino);
+        (*nivel).pergamino = (*nivel).camino[num_pergamino_ale];
+     }
 }
+  
 
 
 /*
