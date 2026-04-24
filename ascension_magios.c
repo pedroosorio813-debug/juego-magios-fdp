@@ -13,7 +13,7 @@ const char HOMERO = 'H';
 const char ALTAR = 'A';
 const char RUNA = 'U';
 const char PARED = 'X';
-const char CAMINO = '*';
+const char CAMINO = 'C';
 const char TOTEM = 'T';
 const char PIEDRA = 'R';
 const char CATAPULTA = 'F';
@@ -36,6 +36,9 @@ const int DISTANCIA_ANTORCHA = 3;
 const int CANTIDAD_TOTEMS = 5;
 const int CANTIDAD_PIEDRAS = 10;
 
+const int JUGANDO = 0;
+const int GANADO = 1;
+const int PERDIDO = -1;
 
 //FUNCIONES-PRIVADAS
 
@@ -177,9 +180,6 @@ coordenada_t obtener_posicion_catapulta(juego_t* juego) {
 void aplicar_bola_de_fuego(juego_t* juego, coordenada_t pos_bola) {
     nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
 
-    printf("Bola cayo en: (%d, %d)\n", pos_bola.fil, pos_bola.col);
-    printf("Tope camino antes: %d\n", (*nivel).tope_camino);
-
     int indice = -1;
     int i = 0;
     bool encontrado = false;
@@ -199,7 +199,7 @@ void aplicar_bola_de_fuego(juego_t* juego, coordenada_t pos_bola) {
            (*nivel).camino[i] = (*nivel).camino[i + 1];
         }
         (*nivel).tope_camino--;
-        printf("Eliminando indice %d del camino. Nuevo tope: %d\n", indice, (*nivel).tope_camino);
+       
     }
 }
 
@@ -321,7 +321,17 @@ bool esta_en_piedra(juego_t *juego, coordenada_t pos_homero){
      }
      return aux;
 }
-    
+
+bool esta_en_pergamino(juego_t *juego, coordenada_t pos_homero){
+    nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
+    if(pos_homero.fil == (*nivel).pergamino.fil && pos_homero.col == (*nivel).pergamino.col){
+        return true;
+    }else{
+        return false;
+    }
+}
+
+
 
 
 
@@ -331,7 +341,7 @@ bool esta_en_piedra(juego_t *juego, coordenada_t pos_homero){
 void inicializar_juego(juego_t *juego) {
     (*juego).tope_niveles = MAX_NIVELES;
     (*juego).nivel_actual = 0;
-    (*juego).homero.posicion = (*juego).niveles[0].camino[0];
+    
 
     for (int i = 0; i < MAX_NIVELES; i++) {
         (*juego).niveles[i].tope_herramientas = 0;
@@ -340,7 +350,7 @@ void inicializar_juego(juego_t *juego) {
         (*juego).niveles[i].camino, &((*juego).niveles[i].tope_camino), i + 1);
     }
 
-   
+    (*juego).homero.posicion = (*juego).niveles[(*juego).nivel_actual].camino[0];
     (*juego).homero.vidas_restantes = VIDAS_INICIALES;
     (*juego).homero.hechizos_reveladores = HECHIZOS_INICIALES;
     (*juego).homero.antorchas = ANTORCHAS_POR_NIVEL;
@@ -372,7 +382,6 @@ void mostrar_juego(juego_t juego){
         }
         printf("\n");
     }
-    printf("Nivel actual: %d | Tope camino: %d\n", juego.nivel_actual, juego.niveles[juego.nivel_actual].tope_camino);
 }
 
 
@@ -380,7 +389,7 @@ void realizar_jugada(juego_t *juego, char movimiento) {
      nivel_t* nivel = &((*juego).niveles[(*juego).nivel_actual]);
      coordenada_t pos_anterior = (*juego).homero.posicion;
      coordenada_t nueva_pos = (*juego).homero.posicion;
-     
+   
      (*juego).homero.antorcha_encendida = false;
      (*juego).camino_visible = false;
 
@@ -395,10 +404,12 @@ void realizar_jugada(juego_t *juego, char movimiento) {
      }
      else if(movimiento == ABAJO){
         nueva_pos.fil++;
-     }else if(movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
+     }
+     else if(movimiento == USAR_ANTORCHA && (*juego).homero.antorchas > 0){
         (*juego).homero.antorcha_encendida = true;
         (*juego).homero.antorchas--;
-     }else if(movimiento == USAR_HECHIZO && (*juego).homero.hechizos_reveladores > 0){
+     }
+     else if(movimiento == USAR_HECHIZO && (*juego).homero.hechizos_reveladores > 0){
         (*juego).camino_visible = true;
         (*juego).homero.hechizos_reveladores--;
         coordenada_t pos_hechizo = obtener_posicion_catapulta(juego);
@@ -414,9 +425,14 @@ void realizar_jugada(juego_t *juego, char movimiento) {
      bool venia_de_otro_lado = (pos_anterior.fil != (*nivel).camino[0].fil || pos_anterior.col != (*nivel).camino[0].col);
 
 
-    if (llego_a_runa && venia_de_otro_lado) {
+     if (llego_a_runa && venia_de_otro_lado) {
         coordenada_t pos_bola = obtener_posicion_catapulta(juego);
         aplicar_bola_de_fuego(juego, pos_bola);
+     }
+
+     if(esta_en_pergamino(juego, nueva_pos)){
+        (*juego).camino_visible = true;
+        (*juego).homero.recolecto_pergamino = true;
      }
 
      if(esta_totem(juego,nueva_pos)){
@@ -432,38 +448,53 @@ void realizar_jugada(juego_t *juego, char movimiento) {
         eliminar_elemento_obtaculos(juego,nueva_pos);
         int num_pergamino_ale = num_aleatorio_pergamino((*nivel).tope_camino);
         (*nivel).pergamino = (*nivel).camino[num_pergamino_ale];
+        (*juego).homero.recolecto_pergamino = false;
      }
 }
   
+int estado_nivel(nivel_t nivel, personaje_t homero){
+    int jugando = JUGANDO;
+    int ganado = GANADO;
+    bool esta_altar = (homero.posicion.fil == nivel.camino[nivel.tope_camino - 1].fil 
+    && homero.posicion.col == nivel.camino[nivel.tope_camino - 1].col);
+    if(esta_altar){
+        return ganado;
+    }
+    return jugando;
+}
 
 
-/*
-    3.7.3 Tótem
-Habra 5 tótems inicializados de forma aleatoria en todo el terreno en cada nivel. Si Homero se posiciona sobre uno, 
-este le otorgará una vida extra. 
-Una vez que Homero se haya posicionado sobre un tótem, este se eliminará del vector de herramientas.
-*/
+void cambiar_nivel(juego_t* juego) {
+    (*juego).nivel_actual++;
+
+    (*juego).homero.posicion = (*juego).niveles[(*juego).nivel_actual].camino[0];
+
+    (*juego).homero.recolecto_pergamino = false;
+    (*juego).homero.antorchas = ANTORCHAS_POR_NIVEL;
+    (*juego).homero.antorcha_encendida = false;
+
+    (*juego).camino_visible = true;
+}
+
+int estado_juego(juego_t juego){
+    int ganado = GANADO;
+    int perdido = PERDIDO;
+    int jugando =  JUGANDO;
+    if (juego.homero.vidas_restantes <= 0) {
+        return perdido; 
+    }
+
+    bool es_ultimo_nivel = (juego.nivel_actual == juego.tope_niveles - 1);
+    bool nivel_ganado = (estado_nivel(juego.niveles[juego.nivel_actual], juego.homero) == 1);
+
+    if (nivel_ganado && es_ultimo_nivel) {
+        return ganado; 
+    }
+
+    return jugando; 
+}
 
 
 
-/*
-    Fase 3: Movimiento y Lógica Básica
-
-    Ciclo principal en juego.c: Armá el while que pida la tecla
-    (W, A, S, D, H, L), valide que sea correcta y llame a realizar_jugada.
-
-    realizar_jugada (Movimiento): Programá primero solo el movimiento de Homero y las colisiones con paredes.
-
-    Lógica de visibilidad: Implementá cuándo camino_visible es true o false 
-    (si está en la runa, si usó hechizo, etc.).
-*/
-
-/*
-    Los Elementos Dinámicos (objeto_t)
-    Estos son los que el enunciado pide guardar en los vectores herramientas y obstaculos.
-    Se definen por tener un tipo (un char) y una posicion.
-    Herramientas: Tótems (T).
-    Obstáculos: Piedras de castigo (R) y la Catapulta (F).
-*/
 
 
